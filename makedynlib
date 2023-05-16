@@ -1,0 +1,91 @@
+#makefile - makedynlib
+
+SHELL := bash
+.ONESHELL:
+
+UNAME_S := $(shell uname -s)
+CXX = g++
+NM = nm
+LDD = ldd
+LIBEXT = so
+#For real GNU toolchan & binutils installed via brew (for macOS: otool -L instead of ldd)
+ifeq ($(UNAME_S),Darwin)
+	CXX = g++-12
+	NM = /usr/local/opt/binutils/bin/nm
+	LDD = otool -L
+	LIBEXT = dylib
+endif	
+
+CFLAGS := -std=c++11 -Wall -fPIC
+SRCEXT := cpp
+
+LIBINCDIR := libinclude
+LIBSRCDIR := libsrc
+LIBOBJDIR := libobj
+
+LIBDIR := lib
+
+LIBSRCFILES := $(shell find $(LIBSRCDIR) -type f -iname "*.$(SRCEXT)") 
+LIBOBJFILES := $(patsubst $(LIBSRCDIR)/%,$(LIBOBJDIR)/%,$(LIBSRCFILES:.$(SRCEXT)=.o))
+
+#be careful for any trailing spaces!
+LIBSRCNAME ?= dynlibexample
+LIBBASENAME ?= dynlibexample
+LIBTARGET := lib$(LIBBASENAME)
+
+
+#Create a dynamic library from just 1 source file
+$(LIBTARGET)-$(LIBSRCNAME): 
+	@echo "==> Creating dynamic library from $(LIBSRCNAME).$(SRCEXT) "
+	@echo "==> ===================================================== "
+	@echo "==> Compiling object from source: "$(LIBSRCNAME).$(SRCEXT) 
+	@mkdir -p $(LIBOBJDIR)
+	@$(CXX) -c -I $(LIBINCDIR) $(LIBSRCDIR)/$(LIBSRCNAME).$(SRCEXT) -o $(LIBOBJDIR)/$(LIBSRCNAME).o
+	@echo "==> Linking object: "$(LIBSRCNAME).o " to output dynamic library file: "$(LIBTARGET).$(LIBEXT) 
+	@mkdir -p $(LIBDIR)
+	@$(CXX) -shared -o $(LIBDIR)/$(LIBTARGET).$(LIBEXT) $(LIBOBJDIR)/$(LIBSRCNAME).o	
+
+
+
+#Create a dynamic library from all source files
+$(LIBTARGET)-all: $(LIBOBJFILES)
+	@echo "==> Creating dynamic library from all sources..." 
+	@echo "==> ===================================================== "
+	@echo "==> Linking and creating dynamic library from all sources..." 
+	@mkdir -p $(LIBDIR)
+	@$(CXX) -shared -o $(LIBDIR)/$(LIBTARGET).$(LIBEXT) $(LIBOBJFILES)
+
+$(LIBOBJDIR)/%.o: $(LIBSRCDIR)/%.$(SRCEXT)
+	@echo "==> Compiling objects from all sources..." 
+	@mkdir -p $(LIBOBJDIR)
+	@$(CXX) -c $(CFLAGS) -I $(LIBINCDIR) $< -o $@
+
+
+
+
+
+check:
+	@file $(LIBDIR)/$(LIBTARGET).$(LIBEXT)
+	@$(LDD) $(LIBDIR)/$(LIBTARGET).$(LIBEXT)			
+	@$(NM) -D $(LIBDIR)/$(LIBTARGET).$(LIBEXT)
+
+clean:
+	@rm -rf $(LIBOBJDIR) $(LIBDIR) 
+	@rm -f $(LIBOBJDIR)/* $(LIBDIR)/*	
+
+
+
+
+
+
+setup:
+	@mkdir -p $(LIBSRCDIR) $(LIBINCDIR) $(LIBOBJDIR) $(LIBDIR) 
+	@touch $(LIBSRCDIR)/$(LIBSRCNAME).$(SRCEXT) $(LIBINCDIR)/$(LIBSRCNAME).h
+	@echo '//$(LIBSRCNAME).$(SRCEXT)' > $(LIBSRCDIR)/$(LIBSRCNAME).$(SRCEXT)
+	@echo '//$(LIBSRCNAME).h' > $(LIBINCDIR)/$(LIBSRCNAME).h
+
+
+destroy:
+	@rm -f $(LIBSRCDIR)/* $(LIBINCDIR)/* $(LIBOBJDIR)/* $(LIBDIR)/*
+	@rm -rf $(LIBSRCDIR) $(LIBINCDIR) $(LIBOBJDIR) $(LIBDIR)
+
